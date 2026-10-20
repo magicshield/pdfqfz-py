@@ -11,7 +11,20 @@ from typing import Callable
 
 from pdfqfz.core import names, pdfio, scanner
 from pdfqfz.core.imageops import StampAssets, build_assets
-from pdfqfz.model.spec import Blend, StampSpec
+from pdfqfz.model.spec import Blend, CertMode, StampSpec
+
+
+def _resolve_signer(spec: StampSpec):
+    from pdfqfz.config import paths
+    from pdfqfz.core import signing
+    if spec.cert_mode == CertMode.SELF_SIGNED:
+        store = spec.cert_store_path or paths.default_cert_path()
+        pw = spec.pfx_password or signing.DEFAULT_SELF_PASSWORD
+        signing.ensure_self_signed_pfx(store, spec.signer_name, pw)
+        return signing.load_signer(store.read_bytes(), pw)
+    if spec.pfx_path is None:
+        raise ValueError("自定义证书模式需要 pfx 文件")
+    return signing.load_signer(Path(spec.pfx_path).read_bytes(), spec.pfx_password)
 
 
 class Cancelled(Exception):
@@ -64,6 +77,19 @@ def process_one(src: Path, spec: StampSpec, assets: StampAssets,
 
         if spec.blend == Blend.MERGE:
             pdfio.rasterize_merge(out, spec.merge_dpi)
+
+        if spec.cert_mode != CertMode.NONE:
+            if spec.encrypt_password:
+                return FileResult(src, out, False,
+                                  message="数字签名与加密输出不能同时使用（加密会使签名失效）")
+            from pdfqfz.core import signing
+            signer = _resolve_signer(spec)
+            signing.sign_pdf_file(
+                out, signer,
+                page_index=plan.sig_page_index,
+                box_bottomleft=plan.sig_box_bl,
+                seal_png=assets.full_png if plan.sig_box_bl else None,
+                ccw_rotation=plan.sig_ccw)
 
         encrypted = False
         final = out

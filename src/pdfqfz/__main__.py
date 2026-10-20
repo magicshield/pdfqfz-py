@@ -4,7 +4,7 @@ import sys
 
 
 def main(argv: list[str] | None = None) -> int:
-    from pdfqfz.cli.main import build_parser, cmd_stamp
+    from pdfqfz.cli.main import build_parser, cmd_cert, cmd_stamp, cmd_verify
 
     argv = sys.argv[1:] if argv is None else argv
     if not argv or argv[0] in ("gui",):
@@ -14,6 +14,10 @@ def main(argv: list[str] | None = None) -> int:
     a = parser.parse_args(argv)
     if a.cmd == "stamp":
         return cmd_stamp(a)
+    if a.cmd == "verify":
+        return cmd_verify(a)
+    if a.cmd == "cert":
+        return cmd_cert(a)
     if a.cmd == "gui":
         from pdfqfz.gui.app import run_gui
         return run_gui([])

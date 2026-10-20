@@ -58,6 +58,9 @@ class StampPlan:
     normal: list[tuple[int, G.Rect, int]] = field(default_factory=list)  # (页, rect, 视觉倾角°)
     sig_page: int = 0
     sig_rect: G.Rect | None = None       # 签名域 = sig_page 章 rect 外扩 2pt
+    sig_box_bl: tuple[float, float, float, float] | None = None  # 未旋转 PDF 左下坐标
+    sig_page_index: int = 0
+    sig_ccw: int = 0                     # 签名外观像素需逆时针补偿的页面旋转
     skipped_seam_reason: str = ""
 
     def seam_pages(self) -> list[int]:
@@ -130,11 +133,19 @@ def build_plan(doc: pymupdf.Document, spec: StampSpec, assets,
                 vrect = base
             plan.normal.append((page_no, vrect, angle))
         if sig_on and 1 <= sig_page <= n and spec.normal != StampType.NONE:
-            _, pW, pH, _, _ = page_metrics(doc[sig_page - 1])
+            rot, pW, pH, uw, uh = page_metrics(doc[sig_page - 1])
             pos = positions.get((file_key, sig_page))
             px, py = pos if pos else (spec.px, spec.py)
             plan.sig_rect = G.expand_rect(
                 G.normal_visual_rect(w0_pt, h0_pt, pW, pH, px, py), 2.0)
+            plan.sig_box_bl = G.unrotated_topleft_to_pdf_bottomleft(
+                G.visual_to_unrotated(plan.sig_rect, rot, uw, uh), uh)
+            plan.sig_page_index = sig_page - 1
+            plan.sig_ccw = rot
+        elif sig_on:
+            plan.sig_page_index = n - 1   # 不可见签名：末页（C# numberOfPages）
+    if spec.cert_mode.value != 0 and plan.sig_rect is None:
+        plan.sig_page_index = n - 1
     return plan
 
 

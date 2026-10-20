@@ -55,8 +55,23 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--encrypt-password", type=str, default=None)
     s.add_argument("--fix-str", type=str, default="已盖章")
     s.add_argument("--fix-mode", choices=["suffix", "prefix"], default="suffix")
+    s.add_argument("--sign", choices=["self", "pfx"], default=None,
+                   help="数字签名: self=自动生成自签证书, pfx=使用 --pfx")
+    s.add_argument("--pfx", type=Path, default=None)
+    s.add_argument("--pfx-password", type=str, default=None)
+    s.add_argument("--cn", type=str, default="", help="签名人名称(自签证书 CN)")
     s.add_argument("--dry-run", action="store_true", help="只打印计划不写盘")
     s.add_argument("-v", "--verbose", action="store_true")
+
+    v = sub.add_parser("verify", help="校验 PDF 数字签名")
+    v.add_argument("file", type=Path)
+
+    c = sub.add_parser("cert", help="证书管理")
+    cs = c.add_subparsers(dest="cert_cmd")
+    cn_ = cs.add_parser("new", help="生成自签 pfx 证书")
+    cn_.add_argument("--cn", required=True)
+    cn_.add_argument("--out", type=Path, default=None)
+    cn_.add_argument("--password", type=str, default=None)
 
     sub.add_parser("gui", help="启动图形界面(默认)")
     return p
@@ -90,6 +105,9 @@ def spec_from_args(a: argparse.Namespace) -> StampSpec:
         fix_str=a.fix_str, fix_str2=fix_str2,
         multi_pass=a.multi_pass, blend=BLEND[a.blend], merge_dpi=a.merge_dpi,
         pdf_password=a.read_password, encrypt_password=a.encrypt_password,
+        cert_mode=CertMode.NONE if not a.sign else (
+            CertMode.SELF_SIGNED if a.sign == "self" else CertMode.CUSTOM_PFX),
+        signer_name=a.cn, pfx_path=a.pfx, pfx_password=a.pfx_password,
         positions=positions,
     )
 
@@ -124,3 +142,32 @@ def cmd_stamp(a: argparse.Namespace) -> int:
         print("没有找到可处理的 PDF", file=sys.stderr)
         return 2
     return 0 if all(r.ok for r in results) else 1
+
+
+def cmd_verify(a: argparse.Namespace) -> int:
+    from pdfqfz.core import signing
+    sigs = signing.verify_pdf(a.file)
+    if not sigs:
+        print("该 PDF 没有数字签名")
+        return 1
+    for s in sigs:
+        print(f"签名域 {s['field']}: 完整性={'通过' if s['integrity_ok'] else '失败'}"
+              f" 摘要={'通过' if s['digest_ok'] else '失败'}"
+              f" 签名人={s['signer']} 证书到期={s['not_after'][:10]}")
+    return 0 if all(s["integrity_ok"] and s["digest_ok"] for s in sigs) else 1
+
+
+def cmd_cert(a: argparse.Namespace) -> int:
+    from pdfqfz.config import paths
+    from pdfqfz.core import signing
+    if a.cert_cmd == "new":
+        out = a.out or (paths.data_dir() / "pdfqfz.pfx")
+        pw = a.password or signing.DEFAULT_SELF_PASSWORD
+        if out.exists():
+            print(f"证书已存在: {out}")
+            return 1
+        signing.ensure_self_signed_pfx(out, a.cn, pw)
+        print(f"已生成自签证书: {out}")
+        return 0
+    print("用法: pdfqfz cert new --cn 名字 [--out 文件] [--password 密码]")
+    return 2

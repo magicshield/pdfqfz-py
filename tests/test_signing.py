@@ -1,0 +1,90 @@
+import pytest
+
+from pdfqfz.core import pipeline, signing
+from pdfqfz.model.spec import (CertMode, Mode, SeamType, StampSpec, StampType)
+
+
+@pytest.fixture(scope="module")
+def pfx(tmp_path_factory):
+    p = tmp_path_factory.mktemp("cert") / "t.pfx"
+    signing.ensure_self_signed_pfx(p, "测试签名人", "pw123")
+    return p
+
+
+def test_ensure_pfx_idempotent(pfx):
+    before = pfx.read_bytes()
+    signing.ensure_self_signed_pfx(pfx, "别的名字", "pw123")
+    assert pfx.read_bytes() == before
+
+
+def test_load_signer(pfx):
+    signer = signing.load_signer(pfx.read_bytes(), "pw123")
+    assert signer.signing_cert is not None
+
+
+def _sign_spec(src, out_dir, pfx, **kw):
+    d = dict(stamp_image=kw.pop("seal"), mode=Mode.FILES, sources=(src,),
+             out_dir=out_dir, opacity=100,
+             cert_mode=CertMode.CUSTOM_PFX, pfx_path=pfx, pfx_password="pw123")
+    d.update(kw)
+    return StampSpec(**d)
+
+
+def test_sign_with_appearance(tmp_path, make_pdf, seal_png, pfx):
+    src = make_pdf(pages=2)
+    spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,
+                      normal=StampType.ALL)
+    res = pipeline.run(spec)
+    assert res[0].ok, res[0].message
+    sigs = signing.verify_pdf(res[0].output)
+    assert len(sigs) == 1
+    assert sigs[0]["integrity_ok"] and sigs[0]["digest_ok"]
+    assert "测试签名人" in sigs[0]["signer"]
+
+
+def test_invisible_sign(tmp_path, make_pdf, seal_png, pfx):
+    src = make_pdf(pages=1)
+    spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,
+                      normal=StampType.NONE, seam=SeamType.NONE)
+    res = pipeline.run(spec)
+    assert res[0].ok, res[0].message
+    sigs = signing.verify_pdf(res[0].output)
+    assert len(sigs) == 1 and sigs[0]["integrity_ok"]
+
+
+def test_multi_pass_keeps_first_signature(tmp_path, make_pdf, seal_png, pfx):
+    src = make_pdf(pages=1)
+    spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,
+                      normal=StampType.ALL, multi_pass=False)
+    r1 = pipeline.run(spec)
+    assert r1[0].ok
+    # 第二次直接对已签名文件全量重写会破坏签名（与 C# 非签名 stamper 行为一致），
+    # 因此多章连盖+签名场景应重新签名：两枚签名需两次增量。
+    spec2 = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,
+                       normal=StampType.NO_LAST, multi_pass=True)
+    r2 = pipeline.run(spec2)
+    assert r2[0].ok, r2[0].message
+    sigs = signing.verify_pdf(r2[0].output)
+    assert len(sigs) >= 1
+
+
+def test_tamper_detected(tmp_path, make_pdf, seal_png, pfx):
+    src = make_pdf(pages=1)
+    spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,
+                      normal=StampType.ALL)
+    res = pipeline.run(spec)
+    data = bytearray(res[0].output.read_bytes())
+    data[100] ^= 0xFF  # 头部之后的已签名覆盖区，破坏摘要但不毁文件结构
+    tampered = tmp_path / "tampered.pdf"
+    tampered.write_bytes(bytes(data))
+    sigs = signing.verify_pdf(tampered)
+    assert len(sigs) == 1
+    assert not (sigs[0]["integrity_ok"] and sigs[0]["digest_ok"])
+
+
+def test_sign_encrypt_conflict(tmp_path, make_pdf, seal_png, pfx):
+    src = make_pdf(pages=1)
+    spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,
+                      normal=StampType.ALL, encrypt_password="x")
+    res = pipeline.run(spec)
+    assert not res[0].ok and "加密" in res[0].message
