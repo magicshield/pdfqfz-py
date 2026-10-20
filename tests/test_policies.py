@@ -119,10 +119,11 @@ def test_overlay_size():
 # --- PreviewPanelLayout ---
 
 def test_panel_layout():
-    assert P.should_show_preview(StampType.NONE, SeamType.ALL) is False
+    # 改进：只要要盖章就显示预览（C# 原版纯骑缝不显示）
+    assert P.should_show_preview(StampType.NONE, SeamType.ALL) is True
+    assert P.should_show_preview(StampType.NONE, SeamType.NONE) is False
     assert P.should_show_preview(StampType.ALL, SeamType.ALL) is True
     assert P.should_show_preview(StampType.NONE, SeamType.CUSTOM) is True
-    assert P.should_show_preview(StampType.NONE, SeamType.ODD) is False
     assert P.collapsed_client_width(629, 8) == 621
     assert P.collapsed_client_width(3, 8) == 1
 

@@ -157,10 +157,10 @@ def overlay_size(size_mm: float, img_px_w: int, img_px_h: int,
     return (w, h)
 
 
-# ---------- PreviewPanelLayout.cs ----------
+# ---------- PreviewPanelLayout.cs（改进：骑缝章也显示预览） ----------
 
 def should_show_preview(stamp: StampType, seam: SeamType) -> bool:
-    return stamp != StampType.NONE or seam == SeamType.CUSTOM
+    return stamp != StampType.NONE or seam != SeamType.NONE
 
 
 def collapsed_client_width(preview_left: int, margin: int) -> int:

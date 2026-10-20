@@ -88,6 +88,9 @@ class StampSpec:
     pdf_password: str | None = None
     encrypt_password: str | None = None
 
+    meta_producer: str | None = None   # 覆盖 PDF Producer（留空保留原值）
+    meta_creator: str | None = None    # 覆盖 PDF Creator
+
     cert_mode: CertMode = CertMode.NONE
     signer_name: str = ""
     pfx_path: Path | None = None

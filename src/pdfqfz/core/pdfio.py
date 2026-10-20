@@ -174,15 +174,23 @@ def apply_plan(doc: pymupdf.Document, spec: StampSpec, assets, plan: StampPlan) 
     return count
 
 
-def rasterize_merge(path: Path, dpi: int = 300) -> None:
+def rasterize_merge(path: Path, dpi: int = 300, spec: StampSpec | None = None) -> None:
     src = open_doc(path)
     out = pymupdf.open()
+    out.set_metadata(src.metadata or {})
     for page in src:
         pix = page.get_pixmap(dpi=dpi)
         np = out.new_page(width=pix.width * 72 / dpi, height=pix.height * 72 / dpi)
         np.insert_image(pymupdf.Rect(0, 0, np.rect.width, np.rect.height),
                         pixmap=pix, keep_proportion=False)
     src.close()
+    if spec is not None and (spec.meta_producer or spec.meta_creator):
+        md = out.metadata or {}
+        if spec.meta_producer:
+            md["producer"] = spec.meta_producer
+        if spec.meta_creator:
+            md["creator"] = spec.meta_creator
+        out.set_metadata(md)
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False, dir=str(path.parent)) as tf:
         tmp = Path(tf.name)
     out.save(str(tmp), garbage=3, deflate=True)
@@ -201,6 +209,13 @@ def encrypt_copy(src: Path, dst: Path, password: str) -> None:
     doc.close()
 
 
-def save_doc(doc: pymupdf.Document, out: Path) -> None:
+def save_doc(doc: pymupdf.Document, out: Path, spec: StampSpec | None = None) -> None:
     # encryption=KEEP(0)：加密 PDF 盖章后保持原加密（save 默认值 1 会丢加密）
+    if spec is not None and (spec.meta_producer or spec.meta_creator):
+        md = doc.metadata or {}
+        if spec.meta_producer:
+            md["producer"] = spec.meta_producer
+        if spec.meta_creator:
+            md["creator"] = spec.meta_creator
+        doc.set_metadata(md)
     doc.save(str(out), garbage=3, deflate=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)

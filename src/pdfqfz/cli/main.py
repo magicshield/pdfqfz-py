@@ -55,6 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--encrypt-password", type=str, default=None)
     s.add_argument("--fix-str", type=str, default="已盖章")
     s.add_argument("--fix-mode", choices=["suffix", "prefix"], default="suffix")
+    s.add_argument("--producer", type=str, default=None,
+                   help="覆盖 PDF Producer 元数据(留空保留原值；签名时同时替换 pyHanko 署名)")
+    s.add_argument("--creator", type=str, default=None, help="覆盖 PDF Creator 元数据")
     s.add_argument("--sign", choices=["self", "pfx"], default=None,
                    help="数字签名: self=自动生成自签证书, pfx=使用 --pfx")
     s.add_argument("--pfx", type=Path, default=None)
@@ -105,6 +108,7 @@ def spec_from_args(a: argparse.Namespace) -> StampSpec:
         fix_str=a.fix_str, fix_str2=fix_str2,
         multi_pass=a.multi_pass, blend=BLEND[a.blend], merge_dpi=a.merge_dpi,
         pdf_password=a.read_password, encrypt_password=a.encrypt_password,
+        meta_producer=a.producer, meta_creator=a.creator,
         cert_mode=CertMode.NONE if not a.sign else (
             CertMode.SELF_SIGNED if a.sign == "self" else CertMode.CUSTOM_PFX),
         signer_name=a.cn, pfx_path=a.pfx, pfx_password=a.pfx_password,

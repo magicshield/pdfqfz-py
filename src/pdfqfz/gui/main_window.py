@@ -224,6 +224,18 @@ class MainWindow(QMainWindow):
         r.addWidget(self.enc_pw_ed)
         fb.addLayout(r)
 
+        # 元数据
+        r = QHBoxLayout()
+        r.addWidget(QLabel("Producer"))
+        self.producer_ed = QLineEdit()
+        self.producer_ed.setPlaceholderText("留空保留原值")
+        r.addWidget(self.producer_ed)
+        r.addWidget(QLabel("Creator"))
+        self.creator_ed = QLineEdit()
+        self.creator_ed.setPlaceholderText("留空保留原值")
+        r.addWidget(self.creator_ed)
+        fb.addLayout(r)
+
         # 签名
         r = QHBoxLayout()
         self.cert_cb = _combo(CERT_ITEMS, r, "签名")
@@ -317,6 +329,10 @@ class MainWindow(QMainWindow):
                     ed.setText(str(ov[key]))
             if "fix_str" in ov:
                 self.fix_str_ed.setText(ov["fix_str"])
+            if "meta_producer" in ov:
+                self.producer_ed.setText(ov["meta_producer"])
+            if "meta_creator" in ov:
+                self.creator_ed.setText(ov["meta_creator"])
             if "fix_type" in ov:
                 self.fix_type_cb.setCurrentIndex(ov["fix_type"])
             self.white_cb.setChecked(bool(ov.get("white_to_alpha", True)))
@@ -428,6 +444,8 @@ class MainWindow(QMainWindow):
             blend=BLEND_ITEMS[self.blend_cb.currentIndex()][1],
             pdf_password=self.read_pw_ed.text() or None,
             encrypt_password=self.enc_pw_ed.text() or None,
+            meta_producer=self.producer_ed.text() or None,
+            meta_creator=self.creator_ed.text() or None,
             cert_mode=CERT_ITEMS[self.cert_cb.currentIndex()][1],
             signer_name=self.cn_ed.text(),
             pfx_path=self.pfx_path,

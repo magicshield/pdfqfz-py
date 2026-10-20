@@ -71,12 +71,12 @@ def process_one(src: Path, spec: StampSpec, assets: StampAssets,
                                   False, msg)
             out.parent.mkdir(parents=True, exist_ok=True)
             pdfio.apply_plan(doc, spec, assets, plan)
-            pdfio.save_doc(doc, out)
+            pdfio.save_doc(doc, out, spec)
         finally:
             doc.close()
 
         if spec.blend == Blend.MERGE:
-            pdfio.rasterize_merge(out, spec.merge_dpi)
+            pdfio.rasterize_merge(out, spec.merge_dpi, spec)
 
         if spec.cert_mode != CertMode.NONE:
             if spec.encrypt_password:
@@ -89,7 +89,8 @@ def process_one(src: Path, spec: StampSpec, assets: StampAssets,
                 page_index=plan.sig_page_index,
                 box_bottomleft=plan.sig_box_bl,
                 seal_png=assets.full_png if plan.sig_box_bl else None,
-                ccw_rotation=plan.sig_ccw)
+                ccw_rotation=plan.sig_ccw,
+                vendor=spec.meta_producer or "PDFQFZ")
 
         encrypted = False
         final = out

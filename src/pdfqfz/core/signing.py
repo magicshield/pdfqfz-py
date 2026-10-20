@@ -29,10 +29,21 @@ from pyhanko.stamp import StaticStampStyle
 DEFAULT_SELF_PASSWORD = "pdfqfz"
 
 
+def _pfx_cn(path: Path, password: str) -> str:
+    try:
+        _key, cert, _cas = pkcs12.load_key_and_certificates(
+            path.read_bytes(), password.encode())
+        return cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def ensure_self_signed_pfx(path: Path, cn: str, password: str = DEFAULT_SELF_PASSWORD,
                            years: int = 5) -> Path:
     if path.exists():
-        return path
+        if not cn or _pfx_cn(path, password) == cn:
+            return path
+        path.unlink()  # 签名人变了 → 重新签发（C# 原版永远复用旧证书）
     key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn or "PDFQFZ")])
     now = datetime.now(timezone.utc)
@@ -61,9 +72,16 @@ def sign_pdf_file(path: Path, signer, *, page_index: int,
                   box_bottomleft: tuple[float, float, float, float] | None = None,
                   seal_png: bytes | None = None,
                   ccw_rotation: int = 0,
-                  field_name: str | None = None) -> None:
-    """box_bottomleft: 未旋转页面 PDF 左下原点坐标；None 则不可见签名。"""
+                  field_name: str | None = None,
+                  vendor: str | None = None) -> None:
+    """box_bottomleft: 未旋转页面 PDF 左下原点坐标；None 则不可见签名。
+
+    vendor: 覆盖写入 PDF Producer 的组件名（pyHanko 默认追加 "pyHanko x.y.z"）。
+    """
     from datetime import datetime
+    if vendor:
+        from pyhanko.pdf_utils.metadata import model as ph_model
+        ph_model.VENDOR = vendor
     if field_name is None:
         field_name = "PDFQFZ 签名 " + datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     with open(path, "r+b") as f:
@@ -78,7 +96,10 @@ def sign_pdf_file(path: Path, signer, *, page_index: int,
                 img = img.transpose(CCW[ccw_rotation])
             style = StaticStampStyle(border_width=0, background=PdfImage(img, writer=writer),
                                      background_opacity=1.0)
-        meta = PdfSignatureMetadata(field_name=field_name, md_algorithm="sha256")
+        from pyhanko.sign.signers.pdf_byterange import BuildProps
+        meta = PdfSignatureMetadata(field_name=field_name, md_algorithm="sha256",
+                                    app_build_props=BuildProps(name="PDFQFZ",
+                                                               revision="1.0"))
         psign = PdfSigner(meta, signer, stamp_style=style, new_field_spec=spec)
         psign.sign_pdf(writer, in_place=True)
 

@@ -11,10 +11,12 @@ def pfx(tmp_path_factory):
     return p
 
 
-def test_ensure_pfx_idempotent(pfx):
-    before = pfx.read_bytes()
-    signing.ensure_self_signed_pfx(pfx, "别的名字", "pw123")
-    assert pfx.read_bytes() == before
+def test_ensure_pfx_idempotent(tmp_path):
+    p = tmp_path / "idem.pfx"
+    signing.ensure_self_signed_pfx(p, "同名", "pw")
+    before = p.read_bytes()
+    signing.ensure_self_signed_pfx(p, "同名", "pw")
+    assert p.read_bytes() == before
 
 
 def test_load_signer(pfx):
@@ -80,6 +82,45 @@ def test_tamper_detected(tmp_path, make_pdf, seal_png, pfx):
     sigs = signing.verify_pdf(tampered)
     assert len(sigs) == 1
     assert not (sigs[0]["integrity_ok"] and sigs[0]["digest_ok"])
+
+
+def test_ensure_pfx_regen_on_cn_change(tmp_path):
+    p = tmp_path / "c.pfx"
+    signing.ensure_self_signed_pfx(p, "甲", "pw")
+    b1 = p.read_bytes()
+    signing.ensure_self_signed_pfx(p, "甲", "pw")
+    assert p.read_bytes() == b1                      # 同名复用
+    signing.ensure_self_signed_pfx(p, "乙", "pw")
+    assert p.read_bytes() != b1                      # 换签名人重签
+    signer = signing.load_signer(p.read_bytes(), "pw")
+    assert "乙" in signer.signing_cert.subject.human_friendly
+
+
+def test_metadata_customization(tmp_path, make_pdf, seal_png):
+    src = make_pdf(pages=1)
+    spec = StampSpec(stamp_image=seal_png, mode=Mode.FILES, sources=(src,),
+                     out_dir=tmp_path / "out", opacity=100,
+                     meta_producer="我的单位 OA", meta_creator="合同系统")
+    res = pipeline.run(spec)
+    assert res[0].ok
+    import pymupdf
+    doc = pymupdf.open(str(res[0].output))
+    assert doc.metadata["producer"] == "我的单位 OA"
+    assert doc.metadata["creator"] == "合同系统"
+    doc.close()
+
+
+def test_sign_replaces_pyhanko_vendor(tmp_path, make_pdf, seal_png, pfx):
+    src = make_pdf(pages=1)
+    spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,
+                      normal=StampType.ALL, meta_producer="ACME 印章")
+    res = pipeline.run(spec)
+    assert res[0].ok, res[0].message
+    import pymupdf
+    doc = pymupdf.open(str(res[0].output))
+    assert "pyHanko" not in (doc.metadata["producer"] or "")
+    assert "ACME 印章" in doc.metadata["producer"]
+    doc.close()
 
 
 def test_sign_encrypt_conflict(tmp_path, make_pdf, seal_png, pfx):

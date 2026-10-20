@@ -25,7 +25,8 @@ _BOOL = {
     "multiPass": "multi_pass", "jitter": "random_jitter",
 }
 _FLOAT = {"px": "px", "py": "py"}
-_STR = {"fixStr": "fix_str", "fixStr2": "fix_str2", "signText": "signer_name"}
+_STR = {"fixStr": "fix_str", "fixStr2": "fix_str2", "signText": "signer_name",
+        "producer": "meta_producer", "creator": "meta_creator"}
 _PATH = {"imagePath": "stamp_image", "outDir": "out_dir", "srcDir": "src_dir",
          "pfxPath": "pfx_path"}
 SECTION = "config"
@@ -86,7 +87,7 @@ def save_spec(spec: StampSpec, path: Path) -> None:
     for key, field in _FLOAT.items():
         cp[SECTION][key] = f"{getattr(spec, field):.4f}"
     for key, field in _STR.items():
-        cp[SECTION][key] = str(getattr(spec, field))
+        cp[SECTION][key] = str(getattr(spec, field) or "")
     for key, field in _PATH.items():
         v = getattr(spec, field, None)
         cp[SECTION][key] = str(v) if v else ""
