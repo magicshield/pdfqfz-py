@@ -84,6 +84,31 @@ def test_gui_end_to_end_stamp(win, qtbot, tmp_path, make_pdf, seal_png, monkeypa
     doc.close()
 
 
+def test_drag_drop_pdf(win, make_pdf):
+    from PySide6.QtCore import QUrl
+
+    src = make_pdf(pages=2)
+
+    class Mime:
+        def hasUrls(self):
+            return True
+
+        def urls(self):
+            return [QUrl.fromLocalFile(str(src)), QUrl.fromLocalFile("x.txt")]
+
+    class Ev:
+        def mimeData(self):
+            return Mime()
+
+        def acceptProposedAction(self):
+            pass
+
+    win.dropEvent(Ev())
+    assert win.mode_cb.currentIndex() == 1
+    assert win.sources == [src]
+    assert win.preview.page_count == 2
+
+
 def test_seam_custom_click_toggles_pages(win, qtbot, make_pdf, seal_png):
     win.seal_cb.addItem(str(seal_png))
     win.seam_cb.setCurrentIndex(4)  # 随意骑缝

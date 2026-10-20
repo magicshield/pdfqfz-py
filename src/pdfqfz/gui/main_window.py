@@ -93,7 +93,33 @@ class MainWindow(QMainWindow):
         root.addWidget(rw, 1)
 
         self.setCentralWidget(central)
+        self.setAcceptDrops(True)
         self.preview.page_changed = self._update_page_label
+
+    # ---------- 拖拽 / ESC ----------
+
+    def dragEnterEvent(self, event):  # noqa: N802
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):  # noqa: N802
+        files = [Path(u.toLocalFile()) for u in event.mimeData().urls()
+                 if u.toLocalFile().lower().endswith(".pdf")]
+        if not files:
+            return
+        self.mode_cb.setCurrentIndex(1)
+        self.sources = files
+        self.src_dir = None
+        self.path_label.setText(", ".join(p.name for p in files[:3])
+                                + ("…" if len(files) > 3 else ""))
+        self._open_preview(files[0])
+        event.acceptProposedAction()
+
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() == Qt.Key_Escape and self.worker and self.worker.isRunning():
+            self._cancel()
+            return
+        super().keyPressEvent(event)
 
     def _build_form(self, fb: QVBoxLayout):
         # 印章图片
