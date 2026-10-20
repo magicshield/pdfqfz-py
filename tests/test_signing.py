@@ -123,6 +123,41 @@ def test_sign_replaces_pyhanko_vendor(tmp_path, make_pdf, seal_png, pfx):
     doc.close()
 
 
+def test_signature_appearance_transparent(tmp_path, make_pdf, pfx):
+    """签名页外观必须保留 alpha。回归：旧代码 convert(RGB) 丢弃 alpha，
+    而真实透明底印章 PNG 的隐藏像素常为黑色 → 黑底。"""
+    from PIL import Image
+    seal = tmp_path / "blackhidden.png"
+    img = Image.new("RGBA", (90, 30), (0, 0, 0, 0))   # 透明区 RGB=黑（常见导出形态）
+    for x in range(2, 88):
+        for y in range(2, 28):
+            img.putpixel((x, y), (200, 30, 30, 255))
+    img.save(seal)
+    src = make_pdf(pages=2)
+    spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal,
+                      normal=StampType.ALL, white_to_alpha=False)
+    res = pipeline.run(spec)
+    assert res[0].ok, res[0].message
+    import pymupdf
+    doc = pymupdf.open(str(res[0].output))
+    page = doc[doc.page_count - 1]          # StampType.ALL → 签名代表页=末页
+    pix = page.get_pixmap(dpi=72)
+    data = pix.samples
+    # 只检测印章区域(默认 px/py 0.77/0.88, 40mm 章)，避开页面示例文字
+    x0, x1 = int(595 * 0.7), int(595 * 0.95)
+    y0, y1 = int(842 * 0.78), int(842 * 0.95)
+    black = red = 0
+    for yy in range(y0, y1):
+        for xx in range(x0, x1):
+            i = (yy * pix.width + xx) * 3
+            if data[i] < 40 and data[i + 1] < 40 and data[i + 2] < 40:
+                black += 1
+            elif data[i] > 120 and data[i + 1] < 100 and data[i + 2] < 100:
+                red += 1
+    assert black == 0 and red > 500
+    doc.close()
+
+
 def test_sign_encrypt_conflict(tmp_path, make_pdf, seal_png, pfx):
     src = make_pdf(pages=1)
     spec = _sign_spec(src, tmp_path / "out", pfx, seal=seal_png,

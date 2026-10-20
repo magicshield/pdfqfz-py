@@ -90,7 +90,7 @@ def sign_pdf_file(path: Path, signer, *, page_index: int,
                            box=None if box_bottomleft is None else tuple(box_bottomleft))
         style = None
         if box_bottomleft is not None and seal_png is not None:
-            img = Image.open(BytesIO(seal_png)).convert("RGB")
+            img = Image.open(BytesIO(seal_png)).convert("RGBA")
             if ccw_rotation:
                 from pdfqfz.core.pdfio import CCW
                 img = img.transpose(CCW[ccw_rotation])
