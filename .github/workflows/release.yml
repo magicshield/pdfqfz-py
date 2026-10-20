@@ -33,25 +33,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]" pyinstaller
 
-      - name: Build (macOS/Linux)
-        if: runner.os != 'Windows'
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           pyinstaller --windowed --name pdfqfz \
             --collect-all pymupdf --collect-all pyhanko \
+            --icon packaging/icon.icns \
+            --add-data "src/pdfqfz/gui/icon.png:pdfqfz/gui" \
             --noconfirm src/pdfqfz/__main__.py
           VERSION="${GITHUB_REF_NAME:-dev}"
-          if [ "$(uname)" = "Darwin" ]; then
-            (cd dist && zip -qry "../pdfqfz-$VERSION-${{ matrix.label }}.zip" pdfqfz.app)
-          else
-            (cd dist && zip -qry "../pdfqfz-$VERSION-${{ matrix.label }}.zip" pdfqfz)
-          fi
+          (cd dist && zip -qry "../pdfqfz-$VERSION-${{ matrix.label }}.zip" pdfqfz.app)
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          pyinstaller --windowed --name pdfqfz \
+            --collect-all pymupdf --collect-all pyhanko \
+            --add-data "src/pdfqfz/gui/icon.png:pdfqfz/gui" \
+            --noconfirm src/pdfqfz/__main__.py
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          (cd dist && zip -qry "../pdfqfz-$VERSION-${{ matrix.label }}.zip" pdfqfz)
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          pyinstaller --windowed --name pdfqfz --collect-all pymupdf --collect-all pyhanko --noconfirm src/pdfqfz/__main__.py
+          pyinstaller --windowed --name pdfqfz --collect-all pymupdf --collect-all pyhanko --icon packaging\icon.ico --add-data "src/pdfqfz/gui/icon.png;pdfqfz/gui" --noconfirm src/pdfqfz/__main__.py
           $ver = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
           Compress-Archive -Path dist/pdfqfz -DestinationPath "pdfqfz-$ver-${{ matrix.label }}.zip"
 

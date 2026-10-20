@@ -111,9 +111,14 @@ python -m pytest            # 82 项测试（含从 C# 版移植的行为基准�
 ```bash
 pip install pyinstaller
 pyinstaller --windowed --name pdfqfz --collect-all pymupdf \
-    --collect-all pyhanko --noconfirm src/pdfqfz/__main__.py
+    --collect-all pyhanko --icon packaging/icon.icns \
+    --add-data "src/pdfqfz/gui/icon.png:pdfqfz/gui" \
+    --noconfirm src/pdfqfz/__main__.py
 # macOS 产物: dist/pdfqfz.app，可 zip 分发
+# Windows 用 --icon packaging/icon.ico 与 --add-data "...;pdfqfz/gui"（分号分隔）
 ```
+
+应用图标源文件在 `packaging/`（`icon.png` 1024²、`icon.icns`、`icon.ico`）。
 
 **GitHub 自动发布**：推送 `v*` 标签即触发 Actions（`.github/workflows/release.yml`）
 矩阵构建 Apple Silicon macOS / Windows x64 / Linux x64 三个平台的 zip，并自动创建
