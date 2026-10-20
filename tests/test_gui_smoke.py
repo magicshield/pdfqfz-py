@@ -9,7 +9,10 @@ from pdfqfz.gui.main_window import MainWindow
 
 
 @pytest.fixture
-def win(qtbot):
+def win(qtbot, monkeypatch, tmp_path):
+    from pdfqfz.config import paths
+    monkeypatch.setattr(paths, "config_path", lambda: tmp_path / "cfg.ini")
+    monkeypatch.setattr(paths, "stamplib_path", lambda: tmp_path / "yz.log")
     w = MainWindow()
     qtbot.addWidget(w)
     return w
@@ -124,6 +127,35 @@ def test_drag_drop_pdf(win, make_pdf):
     assert win.mode_cb.currentIndex() == 1
     assert win.sources == [src]
     assert win.preview.page_count == 2
+
+
+def test_seam_strip_preview_overlay(win, qtbot, make_pdf, seal_png):
+    win.seal_cb.addItem(str(seal_png))
+    win.seam_cb.setCurrentIndex(0)   # 加盖骑缝
+    win.stamp_cb.setCurrentIndex(0)  # 不加普通章
+    win._params_changed()
+    src = make_pdf(pages=4)
+    win.mode_cb.setCurrentIndex(1)
+    win.sources = [src]
+    win._open_preview(src)
+    qtbot.waitUntil(lambda: win.preview._img is not None, timeout=8000)
+    items = win.preview._build_overlays()
+    assert len(items) == 1                    # 仅骑缝条
+    strip_img, x, y, w, h = items[0]
+    from pdfqfz.core import geometry as G
+    from pdfqfz.core import policies as P
+    W = win.assets.full.width
+    sfbl = G.sfbl_percent(40, win.assets.xzbl, W)
+    first_px = P.strip_widths(W, 4)[0]        # 首页条 = 1/3 宽
+    expected = int(G.scale_px(first_px, sfbl) * win.preview._scale)
+    assert abs(w - expected) <= 1
+    # 条贴右缘
+    assert x + w == pytest.approx(win.preview._img.width(), abs=2)
+    # 翻页后条宽变化（非首页为均分条）
+    win.preview.set_page(1)
+    items2 = win.preview._build_overlays()
+    assert len(items2) == 1
+    assert items2[0][3] != w or items2[0][0].width() != strip_img.width()
 
 
 def test_seam_custom_click_toggles_pages(win, qtbot, make_pdf, seal_png):

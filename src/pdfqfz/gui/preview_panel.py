@@ -156,36 +156,71 @@ class PreviewPanel(QWidget):
             self.setFixedSize(self._img.width(), self._img.height())
         self.update()
 
-    def _overlay_geom(self) -> tuple[QImage | None, float, float, float, float]:
-        """返回 (章图, x, y, w, h) 像素；None 表示不叠加。"""
-        if self.spec is None or self.assets is None or self._img is None:
-            return None, 0, 0, 0, 0
+    def _seam_strip_overlay(self, s: float) -> tuple[QImage, float, float, float, float] | None:
+        """当前页若为骑缝目标页，返回该页实际切条的叠加 (图, x, y, w, h)px。"""
         spec = self.spec
-        if spec.normal == StampType.NONE and spec.seam != SeamType.CUSTOM:
-            return None, 0, 0, 0, 0
+        page = self.page_index + 1
+        custom_pages = sorted({p for (k, p) in self.positions.items()
+                               if k == self.file_key})
+        seam_pages = P.seam_target_pages(self.page_count, spec.seam, custom_pages)
+        if len(seam_pages) <= 1 or page not in seam_pages:
+            return None
+        idx = seam_pages.index(page)
+        acc = 0
+        for g in P.seam_groups(len(seam_pages), spec.max_strips):
+            if idx < acc + g:
+                strip_i, group = idx - acc, g
+                break
+            acc += g
+        W_px = self.assets.full.width
+        sfbl = G.sfbl_percent(spec.size_mm, self.assets.xzbl, W_px)
+        widths = tuple(P.strip_widths(W_px, group))
+        strip = self.assets.strip_images(widths, spec.edge)[strip_i]
+        w_pt = G.scale_px(strip.width, sfbl)
+        h_pt = G.scale_px(strip.height, sfbl)
+        page_w_pt, page_h_pt = self._img.width() / s, self._img.height() / s
+        rect = G.seam_visual_rect(w_pt, h_pt, page_w_pt, page_h_pt, spec.edge, spec.wz)
+        return (_qimage_from_pil(strip), rect[0] * s, rect[1] * s,
+                max(1, int(w_pt * s)), max(1, int(h_pt * s)))
+
+    def _build_overlays(self) -> list[tuple[QImage, float, float, float, float]]:
+        """叠加项列表：骑缝切条(体现真实分割) + 整章(普通定位章)。"""
+        if self.spec is None or self.assets is None or self._img is None:
+            return []
+        spec = self.spec
+        s = self._scale  # pt→渲染像素系数
+        items = []
+        if spec.seam != SeamType.NONE:
+            strip = self._seam_strip_overlay(s)
+            if strip is not None:
+                items.append(strip)
         page = self.page_index + 1
         has_pos = (self.file_key, page) in self.positions
-        if not P.overlay_visible_for_page(spec.normal, spec.seam, page,
-                                          self.page_count, has_pos):
-            return None, 0, 0, 0, 0
-        img = _qimage_from_pil(self.assets.full)
-        sfbl = G.sfbl_percent(spec.size_mm, self.assets.xzbl, self.assets.full.width)
-        w_pt = G.scale_px(self.assets.full.width, sfbl)
-        h_pt = G.scale_px(self.assets.full.height, sfbl)
-        s = self._scale  # pt→渲染像素系数
-        ov_w = max(1, int(w_pt * s))
-        ov_h = max(1, int(h_pt * s))
-        px, py = self.positions.get((self.file_key, page), (spec.px, spec.py))
-        rect = G.normal_visual_rect(w_pt, h_pt, self._img.width() / s,
-                                    self._img.height() / s, px, py)
-        return img, rect[0] * s, rect[1] * s, ov_w, ov_h
+        if spec.normal != StampType.NONE and P.overlay_visible_for_page(
+                spec.normal, spec.seam, page, self.page_count, has_pos):
+            img = _qimage_from_pil(self.assets.full)
+            sfbl = G.sfbl_percent(spec.size_mm, self.assets.xzbl, self.assets.full.width)
+            w_pt = G.scale_px(self.assets.full.width, sfbl)
+            h_pt = G.scale_px(self.assets.full.height, sfbl)
+            ov_w = max(1, int(w_pt * s))
+            ov_h = max(1, int(h_pt * s))
+            px, py = self.positions.get((self.file_key, page), (spec.px, spec.py))
+            rect = G.normal_visual_rect(w_pt, h_pt, self._img.width() / s,
+                                        self._img.height() / s, px, py)
+            items.append((img, rect[0] * s, rect[1] * s, ov_w, ov_h))
+        return items
+
+    def _full_seal_overlay(self):
+        for img, x, y, w, h in self._build_overlays():
+            if img.width() == self.assets.full.width:
+                return w, h
+        return 0, 0
 
     def paintEvent(self, event):  # noqa: N802
         p = QPainter(self)
         if self._img:
             p.drawImage(0, 0, self._img)
-        img, x, y, w, h = self._overlay_geom()
-        if img is not None:
+        for img, x, y, w, h in self._build_overlays():
             p.drawImage(int(x), int(y), img.scaled(w, h))
 
     # ---- 交互 ----
@@ -195,7 +230,7 @@ class PreviewPanel(QWidget):
             return
         spec = self.spec
         page = self.page_index + 1
-        img, x, y, w, h = self._overlay_geom()
+        w, h = self._full_seal_overlay()
         if spec.normal == StampType.CUSTOM:
             px, py = P.click_to_position(
                 (event.position().x(), event.position().y()),
