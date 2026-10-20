@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pdfqfz"
+version = "1.0.0"
+description = "跨平台 PDF 骑缝章/印章工具（PDFQFZ 的 Python 重写）"
+requires-python = ">=3.11"
+dependencies = [
+    "pymupdf>=1.26.6,<2",
+    "pillow>=11",
+    "platformdirs>=4",
+]
+
+[project.optional-dependencies]
+gui = ["pyside6>=6.7"]
+sign = ["pyhanko>=0.21"]
+dev = [
+    "pytest>=8",
+    "pytest-qt>=4.4",
+    "pyside6>=6.7",
+    "pyhanko>=0.21",
+]
+
+[project.scripts]
+pdfqfz = "pdfqfz.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pdfqfz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
