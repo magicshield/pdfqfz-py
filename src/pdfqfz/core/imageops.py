@@ -56,10 +56,11 @@ def _bbox_after_rotate(w: int, h: int, angle_cw: int) -> tuple[int, int]:
 
 def rotate(img: Image.Image, angle_cw: int, crop: RotCrop = _CROP
            ) -> tuple[Image.Image, float]:
-    """返回 (旋转后图, xzbl=旋转后宽/旋转前宽)。
+    """返回 (旋转后图, xzbl=外接框宽/原宽)。
 
-    CROP(切边): 输出保持原宽，高度按外接框比例压缩（等价 C# original=true）；
-    EXPAND: 输出完整外接框（等价 C# original=false，骑缝上下缘内部条带用）。
+    CROP(切边): 旋转后中心裁剪回原画布尺寸（真正裁角，内容物理尺寸不变）；
+    EXPAND: 返回完整外接框画布（内容物理尺寸同样不变，画布变大）。
+    印章物理尺寸换算以旋转前的 base_px_w 为准（见 geometry.sfbl_percent）。
     """
     angle = angle_cw % 360
     if angle == 0:
@@ -72,10 +73,11 @@ def rotate(img: Image.Image, angle_cw: int, crop: RotCrop = _CROP
         out = img.rotate(-angle, expand=True, resample=Image.BILINEAR,
                          fillcolor=(0, 0, 0, 0))
     bw, bh = out.size
-    if crop == _CROP:
-        new_h = max(1, round(bh * w / bw))
-        out = out.resize((w, new_h), Image.BILINEAR)
-        return out, 1.0
+    if crop == _CROP and not (angle in (90, 270) and w != h):
+        # 90/270 且非方形时裁剪会裁掉印章主体，退化为完整外接框
+        cx, cy = bw / 2, bh / 2
+        out = out.crop((int(cx - w / 2), int(cy - h / 2),
+                        int(cx + w / 2), int(cy + h / 2)))
     return out, bw / w
 
 
@@ -104,7 +106,8 @@ def rotate_strip_90_cw(img: Image.Image) -> Image.Image:
 @dataclass
 class StampAssets:
     full: Image.Image                      # 处理后整章(像素)
-    xzbl: float
+    xzbl: float                            # 外接框宽/基准宽（仅信息用）
+    base_px_w: int                         # 旋转前印章像素宽（物理尺寸基准）
     full_png: bytes
     _strips: dict = field(default_factory=dict)   # key -> list[Image]
 
@@ -134,6 +137,7 @@ class StampAssets:
 
 def build_assets(spec: StampSpec) -> StampAssets:
     img = load_rgba(spec.stamp_image)
+    base_px_w = img.width
     if spec.white_to_alpha:
         img = white_to_transparent(img, spec.tolerance)
     if spec.opacity < 100:
@@ -142,4 +146,4 @@ def build_assets(spec: StampSpec) -> StampAssets:
         img, xzbl = rotate(img, spec.rotation, spec.crop)
     else:
         xzbl = 1.0
-    return StampAssets(full=img, xzbl=xzbl, full_png=to_png(img))
+    return StampAssets(full=img, xzbl=xzbl, base_px_w=base_px_w, full_png=to_png(img))

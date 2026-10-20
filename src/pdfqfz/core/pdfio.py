@@ -75,7 +75,7 @@ def build_plan(doc: pymupdf.Document, spec: StampSpec, assets,
                rng) -> StampPlan:
     import math
     W_px = assets.full.width
-    sfbl = G.sfbl_percent(spec.size_mm, assets.xzbl, W_px)
+    sfbl = G.sfbl_percent(spec.size_mm, assets.base_px_w)
     n = doc.page_count
     plan = StampPlan()
 

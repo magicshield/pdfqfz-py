@@ -15,12 +15,24 @@ def test_mm_to_pt():
 
 
 def test_sfbl_single_scaling():
-    # size=40mm, xzbl=1, W=600px → sfbl=100*40*72/(25.4*600)
-    s = G.sfbl_percent(40, 1.0, 600)
+    # size=40mm, W=600px → sfbl=100*40*72/(25.4*600)
+    s = G.sfbl_percent(40, 600)
     assert s == pytest.approx(100 * 40 * 72 / (25.4 * 600))
-    # 单条宽度之和(pt) == size mm（单重缩放的核心断言）
+    # 单条宽度之和(pt) = 40mm（单重缩放的核心断言）
     widths_pt = [G.scale_px(w, s) for w in (200, 200, 200)]
     assert sum(widths_pt) == pytest.approx(40 * 72 / 25.4)
+
+
+def test_rotation_preserves_physical_size():
+    # 旋转只改角度不改内容物理尺寸：以旋转前像素宽换算
+    base_w, size_mm = 90, 40
+    s = G.sfbl_percent(size_mm, base_w)
+    assert G.scale_px(base_w, s) == pytest.approx(size_mm * 72 / 25.4)
+    # 不切边模式画布变大(外接框)，但内容宽度仍是 size_mm（画布/内容比 = xzbl）
+    import math
+    a = math.radians(30)
+    bbox_w = 90 * math.cos(a) + 30 * math.sin(a)
+    assert G.scale_px(bbox_w, s) == pytest.approx(size_mm * 72 / 25.4 * bbox_w / 90)
 
 
 def test_seam_rect_right_edge_wz50():

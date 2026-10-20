@@ -145,7 +145,7 @@ def test_seam_strip_preview_overlay(win, qtbot, make_pdf, seal_png):
     from pdfqfz.core import geometry as G
     from pdfqfz.core import policies as P
     W = win.assets.full.width
-    sfbl = G.sfbl_percent(40, win.assets.xzbl, W)
+    sfbl = G.sfbl_percent(40, win.assets.base_px_w)
     first_px = P.strip_widths(W, 4)[0]        # 首页条 = 1/3 宽
     expected = int(G.scale_px(first_px, sfbl) * win.preview._scale)
     assert abs(w - expected) <= 1

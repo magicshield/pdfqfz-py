@@ -17,11 +17,12 @@ def mm_to_pt(mm: float) -> float:
     return mm * PT_PER_MM
 
 
-def sfbl_percent(size_mm: float, xzbl: float, full_stamp_px_w: int) -> float:
-    """缩放百分比：整枚印章(全部竖条之和)宽 = size_mm·xzbl。单重缩放，修正 C# 双重缩放 bug。"""
-    if full_stamp_px_w <= 0:
+def sfbl_percent(size_mm: float, base_px_w: int) -> float:
+    """缩放百分比：印章内容(旋转前)宽 = size_mm。以旋转前像素宽为基准，
+    保证任意旋转角度下物理尺寸不变（修正 C# 双重缩放与旋转改变尺寸问题）。"""
+    if base_px_w <= 0:
         return 0.0
-    return 100.0 * size_mm * xzbl * 72.0 / (25.4 * full_stamp_px_w)
+    return 100.0 * size_mm * 72.0 / (25.4 * base_px_w)
 
 
 def scale_px(px: float, sfbl: float) -> float:

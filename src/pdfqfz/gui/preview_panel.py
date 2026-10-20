@@ -173,7 +173,7 @@ class PreviewPanel(QWidget):
                 break
             acc += g
         W_px = self.assets.full.width
-        sfbl = G.sfbl_percent(spec.size_mm, self.assets.xzbl, W_px)
+        sfbl = G.sfbl_percent(spec.size_mm, self.assets.base_px_w)
         widths = tuple(P.strip_widths(W_px, group))
         strip = self.assets.strip_images(widths, spec.edge)[strip_i]
         w_pt = G.scale_px(strip.width, sfbl)
@@ -199,7 +199,7 @@ class PreviewPanel(QWidget):
         if spec.normal != StampType.NONE and P.overlay_visible_for_page(
                 spec.normal, spec.seam, page, self.page_count, has_pos):
             img = _qimage_from_pil(self.assets.full)
-            sfbl = G.sfbl_percent(spec.size_mm, self.assets.xzbl, self.assets.full.width)
+            sfbl = G.sfbl_percent(spec.size_mm, self.assets.base_px_w)
             w_pt = G.scale_px(self.assets.full.width, sfbl)
             h_pt = G.scale_px(self.assets.full.height, sfbl)
             ov_w = max(1, int(w_pt * s))

@@ -52,13 +52,15 @@ def test_rotate_direction_matches_gdi_plus_semantics():
     assert px(out2, 0, out2.height - 1)[:3] == (255, 0, 0)
 
 
-def test_rotate_crop_keeps_width_xzbl_1():
+def test_rotate_crop_center_crops_keeps_canvas():
     img = Image.new("RGBA", (20, 10), (0, 0, 0, 255))
     out, xzbl = I.rotate(img, 45, RotCrop.CROP)
-    assert out.width == 20
-    assert xzbl == 1.0
+    assert out.size == (20, 10)          # 画布不变=内容物理尺寸不变，角被裁掉
     out2, xzbl2 = I.rotate(img, 45, RotCrop.EXPAND)
     assert out2.width > 20 and xzbl2 == out2.width / 20
+    # 90° 非方形：裁剪会裁掉主体，自动退化为完整外接框
+    out3, _ = I.rotate(img, 90, RotCrop.CROP)
+    assert out3.size == (10, 20)
 
 
 def test_slice_strips_cover_full_width():
@@ -103,6 +105,6 @@ def test_strip_sizes_and_cache(tmp_path: Path):
     assert sizes_t == [(10, 10)] * 3  # 正方形条旋转 90 后尺寸不变
     # 缩放一致性：全部条宽(pt)之和 == size mm
     widths = tuple(s[0] for s in assets.strip_sizes((12, 9, 9), Edge.RIGHT))
-    s = sfbl_percent(40, assets.xzbl, 30)
+    s = sfbl_percent(40, assets.base_px_w)
     total_pt = sum(scale_px(w, s) for w in widths)
     assert abs(total_pt - 40 * 72 / 25.4) < 1e-6
