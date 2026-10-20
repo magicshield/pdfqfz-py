@@ -122,6 +122,9 @@ class StampAssets:
             self._strips[key] = strips
         return self._strips[key]
 
+    def strip_images(self, widths: tuple[int, ...], edge=None) -> list[Image.Image]:
+        return self._strip_images(widths, edge)
+
     def strip_pngs(self, widths: tuple[int, ...], edge=None) -> list[bytes]:
         return [to_png(s) for s in self._strip_images(widths, edge)]
 
