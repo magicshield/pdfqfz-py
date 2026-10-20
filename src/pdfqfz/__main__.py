@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import os
 import sys
+
+if sys.stdout is None:   # PyInstaller --windowed 无控制台
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> int:
