@@ -46,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--py", type=float, default=0.88)
     s.add_argument("--positions", type=Path, default=None,
                    help='点击定位 JSON: [["file.pdf", 页码, px, py], ...]')
-    s.add_argument("--jitter", action="store_true", help="普通章随机参数(±2%/±2°)")
+    s.add_argument("--jitter", action="store_true", help="普通章随机参数(±2%%/±2°)")
     s.add_argument("--jitter-seed", type=int, default=None)
     s.add_argument("--blend", choices=["overlay", "merge"], default="overlay")
     s.add_argument("--merge-dpi", type=int, default=300)

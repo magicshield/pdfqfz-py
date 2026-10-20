@@ -176,6 +176,15 @@ def test_signature_rep_page():
 
 # --- CommandLineFileLoader ---
 
+def test_cli_help_renders():
+    # argparse 会对含 % 的 help 做格式化，防回归
+    import pytest as _pt
+    from pdfqfz.cli.main import build_parser
+    with _pt.raises(SystemExit) as e:
+        build_parser().parse_args(["stamp", "--help"])
+    assert e.value.code == 0
+
+
 def test_collect_existing_pdfs(tmp_path):
     (tmp_path / "a.pdf").write_bytes(b"%PDF-1.4")
     (tmp_path / "b.PDF").write_bytes(b"%PDF-1.4")
