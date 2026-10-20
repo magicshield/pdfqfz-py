@@ -158,6 +158,32 @@ def test_seam_strip_preview_overlay(win, qtbot, make_pdf, seal_png):
     assert items2[0][3] != w or items2[0][0].width() != strip_img.width()
 
 
+def test_preview_matches_actual_size(win, qtbot, make_pdf, seal_png, tmp_path):
+    """回归：预览叠加尺寸必须等于真实盖章尺寸×预览缩放。"""
+    src = make_pdf(pages=2)
+    win.seal_cb.addItem(str(seal_png))
+    win.seam_cb.setCurrentIndex(0)   # 加盖骑缝
+    win.stamp_cb.setCurrentIndex(0)
+    win._params_changed()
+    win.mode_cb.setCurrentIndex(1)
+    win.sources = [src]
+    win.out_dir = tmp_path / "o"
+    win._open_preview(src)
+    qtbot.waitUntil(lambda: win.preview._img is not None, timeout=8000)
+    s = win.preview._scale
+    assert s == pytest.approx(500 / 842, rel=0.01)   # A4 长边钳到 500px
+    strip_img, x, y, w, h = win.preview._build_overlays()[0]
+    from pdfqfz.core import pipeline
+    r = pipeline.run(win.current_spec())[0]
+    assert r.ok
+    import pymupdf
+    doc = pymupdf.open(str(r.output))
+    bbox = doc[0].get_image_info()[0]["bbox"]
+    actual_w_pt = bbox[2] - bbox[0]
+    assert w == pytest.approx(actual_w_pt * s, abs=2)
+    doc.close()
+
+
 def test_seam_custom_click_toggles_pages(win, qtbot, make_pdf, seal_png):
     win.seal_cb.addItem(str(seal_png))
     win.seam_cb.setCurrentIndex(4)  # 随意骑缝

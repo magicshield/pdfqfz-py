@@ -27,29 +27,18 @@ def _qimage_from_pil(img: Image.Image) -> QImage:
 
 
 def render_page_qimage(path: Path, password: str | None, page_index: int) -> tuple[QImage, float]:
-    """返回 (页面图, pt→px 缩放系数)。"""
+    """返回 (页面图, pt→px 缩放系数)。一次渲染：先算长边钳制比例再出图。"""
     doc = pymupdf.open(str(path))
     try:
         if doc.needs_pass and not doc.authenticate(password or ""):
             raise ValueError("PDF 需要密码")
         page = doc[page_index]
-        pix = page.get_pixmap(dpi=DPI)
-        scale = DPI / 72.0
-        if max(pix.width, pix.height) > MAX_SIDE:
-            k = MAX_SIDE / max(pix.width, pix.height)
-            pix = None
-            img = _render_scaled(doc, page_index, k)
-            return _qimage_from_pil(img), scale * k
+        k = min(1.0, MAX_SIDE / max(page.rect.width, page.rect.height))
+        pix = page.get_pixmap(matrix=pymupdf.Matrix(k, k))  # 72dpi 基准: 1pt=1px
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-        return _qimage_from_pil(img), scale
+        return _qimage_from_pil(img), k
     finally:
         doc.close()
-
-
-def _render_scaled(doc, page_index: int, k: float) -> Image.Image:
-    page = doc[page_index]
-    pix = page.get_pixmap(matrix=pymupdf.Matrix(k, k), dpi=DPI)
-    return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
 
 
 class _TaskSignals(QObject):
