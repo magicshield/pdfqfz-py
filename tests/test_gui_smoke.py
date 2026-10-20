@@ -15,6 +15,23 @@ def win(qtbot):
     return w
 
 
+def test_main_dispatch_files_to_gui(monkeypatch):
+    from pdfqfz import __main__ as m
+    import pdfqfz.gui.app as app
+
+    called = {}
+
+    def fake(argv):
+        called["argv"] = argv
+        return 0
+
+    monkeypatch.setattr(app, "run_gui", fake)
+    assert m.main(["a.pdf"]) == 0
+    assert called["argv"] == ["a.pdf"]
+    assert m.main(["gui"]) == 0
+    assert called["argv"] == []
+
+
 def test_normalize_clamps(win):
     win.size_ed.setText("150")
     win._normalize(win.size_ed, 1, 100, signed=False)
