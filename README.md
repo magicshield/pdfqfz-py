@@ -96,7 +96,7 @@ pdfqfz gui          # 或双击/右键"打开方式"传入 PDF：pdfqfz gui 文�
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest            # 76 项测试（含从 C# 版移植的行为基准）
+python -m pytest            # 82 项测试（含从 C# 版移植的行为基准）
 ```
 
 模块：`core/policies.py`（纯函数策略层，对应 C# Library/*）、`core/geometry.py`（坐标/
