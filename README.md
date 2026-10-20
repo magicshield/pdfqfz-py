@@ -104,10 +104,27 @@ python -m pytest            # 82 项测试（含从 C# 版移植的行为基准�
 `core/pdfio.py` + `pipeline.py`（盖章/合并/加密）、`core/signing.py`（pyHanko 签名）、
 `gui/`（PySide6）。
 
-## 打包
+## 打包与发布
+
+本地打包：
 
 ```bash
 pip install pyinstaller
 pyinstaller --windowed --name pdfqfz --collect-all pymupdf \
-    --collect-all pyhanko --collect-submodules PySide6 src/pdfqfz/__main__.py
+    --collect-all pyhanko --noconfirm src/pdfqfz/__main__.py
+# macOS 产物: dist/pdfqfz.app，可 zip 分发
 ```
+
+**GitHub 自动发布**：推送 `v*` 标签即触发 Actions（`.github/workflows/release.yml`）
+矩阵构建 Apple Silicon macOS / Windows x64 / Linux x64 三个平台的 zip，并自动创建
+GitHub Release 附带安装包：
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+也可在仓库 Actions 页面手动 "Run workflow" 试跑（产物为 artifact，不发 Release）。
+注意：GitHub 已无 Intel Mac 云端 runner，macOS Intel 版需在 Intel 机器上本地打包后
+手动附加到 Release。PyInstaller 不支持交叉编译，各平台须由对应平台 runner 构建。
+
+发布新版本时记得同步 `pyproject.toml` 的 `version` 与 tag 一致。

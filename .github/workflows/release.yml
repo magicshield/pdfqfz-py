@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macos-arm64
+          - os: windows-latest
+            label: windows-x64
+          - os: ubuntu-22.04
+            label: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" pyinstaller
+
+      - name: Build (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          pyinstaller --windowed --name pdfqfz \
+            --collect-all pymupdf --collect-all pyhanko \
+            --noconfirm src/pdfqfz/__main__.py
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          if [ "$(uname)" = "Darwin" ]; then
+            (cd dist && zip -qry "../pdfqfz-$VERSION-${{ matrix.label }}.zip" pdfqfz.app)
+          else
+            (cd dist && zip -qry "../pdfqfz-$VERSION-${{ matrix.label }}.zip" pdfqfz)
+          fi
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pyinstaller --windowed --name pdfqfz --collect-all pymupdf --collect-all pyhanko --noconfirm src/pdfqfz/__main__.py
+          $ver = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
+          Compress-Archive -Path dist/pdfqfz -DestinationPath "pdfqfz-$ver-${{ matrix.label }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdfqfz-${{ matrix.label }}
+          path: pdfqfz-*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist-files
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-files/*.zip
+          generate_release_notes: true
